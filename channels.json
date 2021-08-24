@@ -1,26 +1,21 @@
 {"channels": [
 	{
-		"title": "NPO Radio 1",
-		"url": "http://icecast.omroep.nl/radio1-bb-mp3"
-	},
-	{
-		"title": "NPO Radio 2",
-		"url": "http://icecast.omroep.nl/radio2-bb-mp3"
-	},
-	{
-		"title": "NPO 3FM",
-		"url": "http://icecast.omroep.nl/3fm-bb-mp3"
-	},
-	{
-		"title": "NPO Radio 4",
-		"url": "http://icecast.omroep.nl/radio4-bb-mp3"
-	},
-	{
-		"title": "NPO Radio 5",
-		"url": "http://icecast.omroep.nl/radio5-bb-mp3"
-	},
-	{
-		"title": "BNR Nieuwsradio",
-		"url": "http://icecast-bnr.cdp.triple-it.nl/bnr_mp3_128_03"
+		"title": "NTS1",
+		"url": "http://stream-relay-geo.ntslive.net/stream" 
+	},{
+		"title": "NTS2",
+		"url": "http://stream-relay-geo.ntslive.net/stream2" 
+	},{
+		"title": "Radio Angrezi",
+		"url": "http://stream.radioangrezi.de:8000/live"
+	},{
+		"title": "DLF Kultur",
+		"url": "http://st02.sslstream.dlf.de/dlf/02/high/aac/stream.aac"
+	},{
+		"title": "DLF",
+		"url": "http://st01.sslstream.dlf.de/dlf/01/high/aac/stream.aac"
+	},{
+		"title": "FSK",
+		"url": "http://stream.fsk-hh.org:8000/fsk.mp3" 
 	}
 ]}

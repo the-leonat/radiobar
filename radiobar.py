@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import vlc
+from Cocoa import (NSFont, NSFontAttributeName, NSColor,
+                   NSForegroundColorAttributeName)
+from PyObjCTools.Conversion import propertyListFromPythonCollection
+from AppKit import NSAttributedString, NSScreen
 import rumps
 import ctypes
 import os
@@ -11,10 +16,10 @@ import threading
 import json
 import time
 import re
+from getmeta import TitleListener
+from datetime import datetime
+rumps.debug_mode(True)
 
-from AppKit import NSAttributedString, NSScreen
-from PyObjCTools.Conversion import propertyListFromPythonCollection
-from Cocoa import (NSFont, NSFontAttributeName, NSColor, NSForegroundColorAttributeName)
 
 # preload libvlccore.dylib
 # https://github.com/oaubert/python-vlc/issues/37
@@ -25,13 +30,11 @@ if os.path.exists(p):
     ctypes.CDLL(d + 'lib/libvlccore.dylib')  # ****
     dll = ctypes.CDLL(p)
 
-import vlc
-
-rumps.debug_mode(False)
 
 if 'VLC_PLUGIN_PATH' not in os.environ:
     # print('VLC_PLUGIN_PATH not set. Setting now...')
     os.environ['VLC_PLUGIN_PATH'] = '$VLC_PLUGIN_PATH:/Applications/VLC.app/Contents/MacOS/plugins'
+
 
 class RadioBarRemoteThread(threading.Thread):
     def __init__(self, radiobar, host, port):
@@ -56,8 +59,10 @@ class RadioBarRemoteThread(threading.Thread):
             if msg == "":
                 radiobar.toggle(radiobar.menu[radiobar.active_station])
             elif msg.isnumeric() and 0 <= int(msg)-1 < len(radiobar.stations):
-                radiobar.play(radiobar.menu[radiobar.stations[int(msg)-1]['title']])
-                c.send(b'Listening to ' + radiobar.stations[int(msg)-1]['title'].encode('utf-8'))  
+                radiobar.play(
+                    radiobar.menu[radiobar.stations[int(msg)-1]['title']])
+                c.send(b'Listening to ' +
+                       radiobar.stations[int(msg)-1]['title'].encode('utf-8'))
             elif msg == "off":
                 radiobar.stop(radiobar.menu["Stop"])
                 c.send(b'Off')
@@ -84,24 +89,31 @@ class RadioBarRemoteThread(threading.Thread):
     def stop(self):
         self.stop_event.set()
 
+
 class RadioBar(rumps.App):
 
     def __init__(self):
-        super(RadioBar, self).__init__('RadioBar',icon='radio-icon-grey.png', template=None, quit_button=None)
+        super(RadioBar, self).__init__('RadioBar',
+                                       icon='radio-icon-grey.png', template=None, quit_button=None)
 
         self.show_notifications = True
         self.show_notification_station_change = False
         self.show_nowplaying_menubar = True
-        self.default_icon = 'radio-icon.png' # 'radio-icon.png' or 'radio-icon-green.png'
+        # 'radio-icon.png' or 'radio-icon-green.png'
+        self.default_icon = 'radio-icon.png'
         self.default_icon_disabled = 'radio-icon-grey.png'
-        self.default_color_list = [255,255,255,1] # format: r,g,b,alpha // [29,185,84,1] = "Spotify green" // [0,0,0,1] = "White"
-        self.default_color_list_disabled = [255,255,255,0.4]
+        # format: r,g,b,alpha // [29,185,84,1] = "Spotify green" // [0,0,0,1] = "White"
+        self.default_color_list = [255, 255, 255, 1]
+        self.default_color_list_disabled = [255, 255, 255, 0.4]
         # Truncate if the screen is smaller than 1440px wide
         self.truncate = NSScreen.screens()[0].frame().size.width <= 1440
 
         self.active_station = None
         self.nowplaying = None
-        self.player = vlc.MediaPlayer()
+        self.titleListener = TitleListener()
+        self.vlcInstance = vlc.Instance()
+        self.player = self.vlcInstance.media_player_new()
+        self.media = None
         self.stations = []
         self.urls = {}
         self.get_stations()
@@ -114,10 +126,13 @@ class RadioBar(rumps.App):
         self.threads.append(remote_thread)
         remote_thread.start()
 
+    def log(self, msg):
+        print(msg)
+
     def set_title(self, title, color_list=None):
         self.title = title
         if color_list is None:
-                color_list = self.default_color_list
+            color_list = self.default_color_list
 
         if title is not None:
             if self.truncate and len(title) > 40:
@@ -125,9 +140,11 @@ class RadioBar(rumps.App):
 
             # This is hacky, but works
             # https://github.com/jaredks/rumps/issues/30
-            color = NSColor.colorWithCalibratedRed_green_blue_alpha_(color_list[0]/255, color_list[1]/255, color_list[2]/255, color_list[3])
+            color = NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                color_list[0]/255, color_list[1]/255, color_list[2]/255, color_list[3])
             font = NSFont.menuBarFontOfSize_(0)
-            attributes = propertyListFromPythonCollection({NSForegroundColorAttributeName: color, NSFontAttributeName: font}, conversionHelper=lambda x: x)
+            attributes = propertyListFromPythonCollection(
+                {NSForegroundColorAttributeName: color, NSFontAttributeName: font}, conversionHelper=lambda x: x)
             string = NSAttributedString.alloc().initWithString_attributes_(' ' + title, attributes)
             self._nsapp.nsstatusitem.setAttributedTitle_(string)
 
@@ -149,7 +166,7 @@ class RadioBar(rumps.App):
         new_menu.append(rumps.separator)
         new_menu.append(rumps.MenuItem('Stop'))
         new_menu.append(rumps.separator)
-        new_menu.append(rumps.MenuItem('Quit RadioBar',callback=self.quit))
+        new_menu.append(rumps.MenuItem('Quit RadioBar', callback=self.quit))
 
         self.menu = new_menu
 
@@ -172,11 +189,13 @@ class RadioBar(rumps.App):
         # craft station url
         station_url = self.urls[self.active_station]
         print(u'Playing URL %s' % station_url)
-
         # feed url to player
-        self.player.set_mrl(station_url)
+        self.media = self.vlcInstance.media_new_location(station_url)  # Your audio file here
+        self.titleListener.listen(station_url)
+        print("listen started")
+        self.player.set_media(self.media)
         self.player.play()
-       
+
     def reset_menu_state(self):
         if self.active_station is None:
             return
@@ -204,13 +223,11 @@ class RadioBar(rumps.App):
 
         print("Switching to station: " + self.active_station)
         self.start_radio()
+        print ("updated radio")
 
-        time.sleep(.3)
+        time.sleep(.5)
         self.update_nowplaying()
 
-        print("Playing: " + self.nowplaying)
-        if self.show_notification_station_change:
-            self.notify(self.nowplaying)
 
     def toggle(self, sender):
         # Stopped -> Playing
@@ -222,7 +239,7 @@ class RadioBar(rumps.App):
             elif self.menu[self.active_station] is not sender:
                 self.play(sender)
             # Paused and clicked the currently paused station
-            else: 
+            else:
                 active_menu = self.menu[self.active_station]
                 # Playing -> Paused
                 if active_menu.state == 1:
@@ -236,7 +253,7 @@ class RadioBar(rumps.App):
         self.player.stop()
         sender.state = - 1
         self.set_title(self.active_station, self.default_color_list_disabled)
-        self.icon = self.default_icon_disabled 
+        self.icon = self.default_icon_disabled
         self.nowplaying = None
         self.menu['Now Playing'].title = 'Paused'
 
@@ -247,61 +264,27 @@ class RadioBar(rumps.App):
 
     def get_nowplaying(self):
         if self.active_station is not None:
-            media = self.player.get_media()
-            try:
-                media.parse_with_options(vlc.MediaParseFlag.network, 0)
-                title = media.get_meta(vlc.Meta.Title)
-                artist = media.get_meta(vlc.Meta.Artist)
-                nowplaying = media.get_meta(vlc.Meta.NowPlaying)
-
-                if artist and artist != "" and title and title != "":
-                    return artist + " - " + title
-                elif nowplaying and nowplaying != "":
-                    return nowplaying
-                elif self.active_station != "":
-                    return self.active_station
-                else:
-                    return "Nothing playing..."
-            except AttributeError as e:
-                return None
+            return self.titleListener.get_current_showtitle()
 
     def update_nowplaying(self):
         state = self.player.get_state()
         # Try to update information asap, even if vlc.State.Opening
-        if self.active_station is not None and self.player.get_state() in {vlc.State.Playing, vlc.State.Opening}:
+        if self.active_station is not None:
             old_info = self.nowplaying
-            new = self.get_nowplaying()
-            new_info = new.replace(self.active_station + " - ","")
-            # Remove non-info like "TOPSONG: " (NPO Radio 2)
-            new_info = new_info.replace("TOPSONG: ","")
-            new_info = new_info.replace("HI: ","")
-            # Remove trailing station info like "De Nieuws BV - BNN-VARA"
-            new_info = re.sub(r' - [A-Z-]*$', "", new_info)
-            if new_info.isupper():
-                # Fix ALL UPPERCASE strings (and some annyoing regressions)
-                new_info = new_info.title()
-                # Get rid of uninteresting info like "Franz Ferdinand - This Fire (3Fm Intro)"
-                new_info = re.sub(r'\(3Fm .*\)', "", new_info)
-        
-            self.nowplaying = new_info
+            new_info = self.get_nowplaying()
             self.menu['Now Playing'].title = new_info
-  
-            if new_info == self.active_station:
-                self.set_title(new_info)
-            
-            if old_info is None or new_info != old_info:
-                if self.show_nowplaying_menubar:
-                    self.set_title(self.active_station + ' - ' + new_info)
-                # This depends on how your stations work, but for me the station changes back to "Station Name - Show Name" after a song
-                # and I don't want notifications all the time the show name comes back on as Now Playing new_info...
-                # So we only show notifications when the new info doesn't start with the station name.
-                if not new.startswith(self.active_station):
-                    self.notify(new_info)
+
+            # if old_info is None or new_info != old_info:
+            #     # This depends on how your stations work, but for me the station changes back to "Station Name - Show Name" after a song
+            #     # and I don't want notifications all the time the show name comes back on as Now Playing new_info...
+            #     # So we only show notifications when the new info doesn't start with the station name.
+            #     if not new.startswith(self.active_station):
+            #         self.notify(new_info)
 
     @rumps.timer(10)
     def track_metadata_changes(self, sender):
         self.update_nowplaying()
-   
+
     def notify(self, msg):
         print("Notification: " + msg)
         if self.active_station:
@@ -312,6 +295,7 @@ class RadioBar(rumps.App):
     def quit(self, sender):
         for t in self.threads:
             t.stop()
+        self.titleListener.quit()
         rumps.quit_application(sender)
 
     def sleep(self):
@@ -319,10 +303,11 @@ class RadioBar(rumps.App):
         if self.awake and self.active_station:
             self.pause(self.menu[self.active_station])
         self.awake = False
-    
+
     def wake(self):
         print("Waking up!")
         self.awake = True
+
 
 if __name__ == "__main__":
     RadioBar().run()
