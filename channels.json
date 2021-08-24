@@ -1,19 +1,19 @@
 {"channels": [
 	{
 		"title": "NTS1",
-		"url": "http://stream-relay-geo.ntslive.net/stream" 
+		"url": "https://stream-relay-geo.ntslive.net/stream" 
 	},{
 		"title": "NTS2",
-		"url": "http://stream-relay-geo.ntslive.net/stream2" 
+		"url": "https://stream-relay-geo.ntslive.net/stream2" 
 	},{
 		"title": "Radio Angrezi",
 		"url": "http://stream.radioangrezi.de:8000/live"
 	},{
 		"title": "DLF Kultur",
-		"url": "http://st02.sslstream.dlf.de/dlf/02/high/aac/stream.aac"
+		"url": "https://st02.sslstream.dlf.de/dlf/02/high/aac/stream.aac"
 	},{
 		"title": "DLF",
-		"url": "http://st01.sslstream.dlf.de/dlf/01/high/aac/stream.aac"
+		"url": "https://st01.sslstream.dlf.de/dlf/01/high/aac/stream.aac"
 	},{
 		"title": "FSK",
 		"url": "http://stream.fsk-hh.org:8000/fsk.mp3" 
@@ -23,5 +23,11 @@
 	}, {
 		"title": "ByteFm",
 		"url": "https://bytefm.cast.addradio.de/bytefm/main/high/stream"
+	}, {
+		"title": "Corax",
+		"url": "http://listen.radiocorax.de/corax_192.mp3"
+	}, {
+		"title": "Cashmere",
+		"url": "https://cashmereradio.out.airtime.pro/cashmereradio_b"
 	}
 ]}
