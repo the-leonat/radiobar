@@ -14,7 +14,6 @@ except ImportError:
 import threading  # threading is better than the thread module
 import queue
 
-lock = threading.Lock()
 
 def icy_monitor(stream_url, change_callback=None, exit_callback=None):
     try:
@@ -27,20 +26,18 @@ def icy_monitor(stream_url, change_callback=None, exit_callback=None):
             metadata_buffer = BytesIO()
 
             if "icy-metaint" not in r.headers:
-                print ("no meta available")
+                print("no meta available")
+                change_callback("No title info supported")
                 return
-            else:
-                print (int(r.headers['icy-metaint']))
 
             metadata_size = int(r.headers['icy-metaint']) + 255
 
             data_is_meta = False
 
             for byte in r.iter_content(1):
-                with lock:
-                    if exit_callback():
-                        print ("Terminate thread for url {}...".format(stream_url))
-                        return
+                if exit_callback():
+                    print("Terminate thread for url {}...".format(stream_url))
+                    return
 
                 byte_counter += 1
 
@@ -80,27 +77,39 @@ def icy_monitor(stream_url, change_callback=None, exit_callback=None):
 
                     data_is_meta = False
     except:
-        print ("something failed")
+        print("something failed")
+
 
 def print_title(title):
     print('Title: {}'.format(title))
 
-def start_thread(stream_url, queue, should_exit_cb):
+
+def run_in_thread(stream_url, queue, should_exit_cb):
     def on_showtitle_changed(title):
         queue.put(title)
 
     def should_exit():
         return should_exit_cb();
 
-    icy_monitor(stream_url, change_callback=on_showtitle_changed, exit_callback=should_exit)
+    icy_monitor(stream_url, change_callback=on_showtitle_changed,
+                exit_callback=should_exit)
+
+
+def apply_empty(title):
+    if title == "" or len(title) <= 3:
+        return "No title"
+    if len(title) > 50:
+        return title[:47] + '...'
+    return title
 
 class TitleListener():
+    LOADING_LABEL = "Loading..."
     def __init__(self):
         self.title_queue = queue.Queue()  # use a queue to pass messages from the worker thread to the main thread
         self.current_stream_url = None;
         self.thread = None;
         self.should_exit_thread = False;
-        self.last_show_title = None;
+        self.last_showtitle = self.LOADING_LABEL;
 
     def get_current_showtitle(self):    
         while True:
@@ -108,11 +117,11 @@ class TitleListener():
                 title = self.title_queue.get_nowait()
                 # if title is none return last title available
                 if title is None:
-                    return self.last_show_title
-                self.last_show_title = title
+                    return apply_empty(self.last_showtitle)
+                self.last_showtitle = title
                 self.title_queue.task_done()
             except queue.Empty:
-                return self.last_show_title
+                return apply_empty(self.last_showtitle)
 
     def exit_thread(self):
         if self.thread is None:
@@ -122,6 +131,14 @@ class TitleListener():
         self.thread.join()
         print ("closed thread")
 
+    def start_thread(self, stream_url):
+        def should_exit_thread():
+            return self.should_exit_thread
+        self.thread = threading.Thread(target=run_in_thread, args=(stream_url, self.title_queue, should_exit_thread))
+        self.should_exit_thread = False
+        self.last_showtitle = self.LOADING_LABEL
+        self.thread.start();
+        print("started thread for {}".format(stream_url))
 
     def quit(self):
         print ("quit")
@@ -135,12 +152,8 @@ class TitleListener():
         # exit thread if exists
         self.exit_thread();
         # create new thread
-        def should_exit_thread():
-            return self.should_exit_thread
-        self.thread = threading.Thread(target=start_thread, args=(stream_url, self.title_queue, should_exit_thread))
-        self.should_exit_thread = False
-        self.thread.start();
-        print("started thread for {}".format(stream_url))
+        self.start_thread(stream_url);
+    
 
 if __name__ == '__main__':
     stream_url = sys.argv[1]

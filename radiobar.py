@@ -36,6 +36,12 @@ if 'VLC_PLUGIN_PATH' not in os.environ:
     os.environ['VLC_PLUGIN_PATH'] = '$VLC_PLUGIN_PATH:/Applications/VLC.app/Contents/MacOS/plugins'
 
 
+def rpart(s):
+    if len(s) > 40:
+        part = s.rpartition(' ')
+        return part[-1] + part[1] + part[0]
+    return s
+
 class RadioBarRemoteThread(threading.Thread):
     def __init__(self, radiobar, host, port):
         super(RadioBarRemoteThread, self).__init__()
@@ -169,6 +175,7 @@ class RadioBar(rumps.App):
         new_menu.append(rumps.MenuItem('Quit RadioBar', callback=self.quit))
 
         self.menu = new_menu
+        self.menu['Now Playing'].title = 'Nothing playing...'
 
     def get_stations(self):
         if len(self.stations) > 0:
@@ -192,9 +199,9 @@ class RadioBar(rumps.App):
         # feed url to player
         self.media = self.vlcInstance.media_new_location(station_url)  # Your audio file here
         self.titleListener.listen(station_url)
-        print("listen started")
         self.player.set_media(self.media)
         self.player.play()
+        self.update_nowplaying()
 
     def reset_menu_state(self):
         if self.active_station is None:
@@ -211,7 +218,7 @@ class RadioBar(rumps.App):
 
     def play(self, sender):
         # is there already a station playing or a paused station?
-        if self.active_station is not None and self.menu[self.active_station].state is not 0:
+        if self.active_station is not None and self.menu[self.active_station].state != 0:
             self.reset_menu_state()
 
         self.active_station = sender.title
@@ -272,7 +279,8 @@ class RadioBar(rumps.App):
         if self.active_station is not None:
             old_info = self.nowplaying
             new_info = self.get_nowplaying()
-            self.menu['Now Playing'].title = new_info
+            if (new_info != old_info):
+                self.menu['Now Playing'].title = new_info
 
             # if old_info is None or new_info != old_info:
             #     # This depends on how your stations work, but for me the station changes back to "Station Name - Show Name" after a song
@@ -281,7 +289,7 @@ class RadioBar(rumps.App):
             #     if not new.startswith(self.active_station):
             #         self.notify(new_info)
 
-    @rumps.timer(10)
+    @rumps.timer(5)
     def track_metadata_changes(self, sender):
         self.update_nowplaying()
 
