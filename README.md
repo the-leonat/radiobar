@@ -1,8 +1,7 @@
 ## RadioBar
 
 This is a fork from @mdraber https://github.com/mdbraber/radiobar.
-
-Since vlc3 is no longer able to read metadata from icecast streams [read issue](https://code.videolan.org/videolan/vlc/-/issues/21057), I changed the method of metadata retrieval.
+the libvlc python bindung has trouble to read metadata from icecast streams [read issue](https://code.videolan.org/videolan/vlc/-/issues/21057), I changed the method of metadata retrieval and put it in a seperate thread. it now catches updates of the stream title everytime.
 
 ## Credits
 This is a fork.
